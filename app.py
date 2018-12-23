@@ -1,32 +1,25 @@
 from flask import Flask, request, jsonify
 import numpy as np
-from keras.layers import Input, Dense, Flatten
-from keras.layers import Conv2D, MaxPooling2D,Dropout,LeakyReLU
-from keras.models import Model
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from classification_model import create_model
 import tensorflow as tf
 classes=['am','gsm','nfm','usb','wfm']
 
 app = Flask(__name__)
-
+limiter = Limiter(
+    app,
+    key_func=get_remote_address,
+    default_limits=[]
+)
 model=None
 graph=None
 def load_model():
     global model
     DIM1=250
     DIM2=100
-    num_classes=5
-    input_signal = Input(shape=(DIM1, DIM2, 2))
-    x = Conv2D(16, (3, 3), padding='same')(input_signal)
-    x = LeakyReLU(alpha=0.01)(x)
-    x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Conv2D(32, (3, 3), padding='same')(x)
-    x = LeakyReLU(alpha=0.01)(x)
-    x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Flatten()(x)
-    x = Dense(128, activation='relu')(x)
-    x = Dropout(0.5)(x)
-    x = Dense(num_classes, activation='softmax')(x)
-    model = Model(inputs=input_signal, outputs=x)
+    num_classes=4
+    model = create_model(DIM1,DIM2,num_classes=4)
     model.load_weights("/home/tainv/PycharmProjects/cnn-rtlsdr/model.h5")
     global graph
     graph = tf.get_default_graph()
@@ -39,6 +32,7 @@ def process_input(x):
     return np.array([x])
 
 @app.route('/classification', methods=['POST'])
+@limiter.limit("60 per second")
 def create_task():
     url = request.json
     #sprint(url)
